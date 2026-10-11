@@ -17,6 +17,8 @@ def send(settings: dict, title: str, message: str, priority: int = 3, tags: list
         return False
     payload = {"topic": topic, "title": title, "message": message,
                "priority": priority, "tags": tags or []}
+    if settings.get("public_url"):
+        payload["click"] = settings["public_url"]  # tapping the notification opens the viewer
     request = urllib.request.Request(
         settings.get("ntfy_server", "https://ntfy.sh").rstrip("/"),
         data=json.dumps(payload).encode("utf-8"),

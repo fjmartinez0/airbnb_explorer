@@ -26,6 +26,9 @@ DEFAULT_SETTINGS = {
     "start_delay_minutes": 0,                # optional random delay before a scheduled run
     "pause_between_listings_seconds": [60, 300],
     "retry_failed": True,
+    "publish_github_pages": False,           # push the viewer to the gh-pages branch after each capture
+    "public_url": "",                        # link opened from the notification
+    "public_include_identifiers": False,     # host names and listing IDs on the public page
 }
 
 

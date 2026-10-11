@@ -4,6 +4,7 @@
     python3 -m explorer analyze
     python3 -m explorer export-viewer
     python3 -m explorer notify-test
+    python3 -m explorer publish
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("analyze", help="detecta reservas y genera data/analysis/")
     sub.add_parser("export-viewer", help="regenera viewer/data.js sin capturar")
     sub.add_parser("notify-test", help="envía una notificación de prueba al canal de ntfy")
+    sub.add_parser("publish", help="publica el visor en GitHub Pages (rama gh-pages)")
 
     args = parser.parse_args(argv)
     settings = load_settings()
@@ -72,6 +74,13 @@ def main(argv: list[str] | None = None) -> int:
                            "Si ves esto, las notificaciones funcionan.", tags=["tada"])
         print(f"Enviada al canal '{settings['ntfy_topic']}'." if sent else "No se pudo enviar; revisa data/capture.log.")
         return 0 if sent else 1
+    if args.command == "publish":
+        from .publish import publish_site
+        from .viewer_data import export_viewer_data
+        export_viewer_data()
+        url = publish_site(settings)
+        print(f"Publicado. {url or 'Activa GitHub Pages en la rama gh-pages.'}")
+        return 0
     return 1
 
 

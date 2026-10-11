@@ -54,7 +54,10 @@ h1 { font-family: var(--f-display); font-size: 1.6rem; font-weight: 700; margin:
 .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .badge { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--new); color: var(--fg); }
 .badge.real { border-color: var(--occ); }
-.stamp { font-family: var(--f-mono); font-size: 0.75rem; color: var(--muted); }
+.stamp { display: grid; gap: 1px; text-align: right; padding-right: 4px; }
+.stamp .stamp-lab { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.stamp .stamp-val { font-family: var(--f-mono); font-size: 0.9rem; color: var(--fg); font-variant-numeric: tabular-nums; }
+.stamp .stamp-sub { font-family: var(--f-mono); font-size: 0.72rem; color: var(--muted); }
 select { font: inherit; font-size: 0.92rem; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; max-width: 100%; }
 select:focus-visible, .tab:focus-visible, .linkbtn:focus-visible, tr.click:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
@@ -455,7 +458,7 @@ function renderDetail(label) {
   ACTIVE_LISTING = l.label; $("listing").value = l.label;
   try { localStorage.setItem("airbnb_listing", l.label); } catch (e) {}
   const z = zoneOf(l.zone), real = /^\d+$/.test(l.id || "") && !window.__SAMPLE__;
-  $("meta").innerHTML = `<span class="zchip"><i style="background:${z.color}"></i>${esc(l.zone)}</span><span>ID ${esc(l.id || "–")}</span>` + (real ? `<a href="https://www.airbnb.com.co/rooms/${esc(l.id)}" target="_blank" rel="noopener">Ver en Airbnb</a>` : "");
+  $("meta").innerHTML = `<span class="zchip"><i style="background:${z.color}"></i>${esc(l.zone)}</span>` + (l.id ? `<span>ID ${esc(l.id)}</span>` : "") + (real ? `<a href="https://www.airbnb.com.co/rooms/${esc(l.id)}" target="_blank" rel="noopener">Ver en Airbnb</a>` : "");
   const A = l.A;
   renderKpis(A); renderMatrix(A); renderHist(A); renderEvents(A);
 }
@@ -551,7 +554,17 @@ window.__SAMPLE__ = !real;
 prepare(DATA);
 $("badge").textContent = real ? "Tus datos" : "Datos de ejemplo";
 $("badge").classList.toggle("real", !!real);
-$("stamp").textContent = real && DATA.generated_at ? `actualizado ${DATA.generated_at.replace("T", " ")}` : "";
+// Última captura (fecha y hora de la corrida más reciente) y momento en que se generaron los datos
+const fmtStamp = (d, t) => { const x = new Date(toD(d)); return `${DOW[x.getUTCDay()]} ${x.getUTCDate()} ${MON[x.getUTCMonth()]} ${x.getUTCFullYear()}${t ? " · " + t : ""}`; };
+const lastRun = (DATA.listings || []).flatMap(l => l.observations || []).reduce((m, o) => {
+  const k = `${o.observed_date} ${o.observed_time || ""}`; return !m || k > m.k ? { k, d: o.observed_date, t: o.observed_time } : m; }, null);
+if (real && lastRun) {
+  const gen = DATA.generated_at ? DATA.generated_at.replace("T", " ").slice(0, 16) : "";
+  $("stamp").innerHTML = `<span class="stamp-lab">Última captura</span><span class="stamp-val">${fmtStamp(lastRun.d, lastRun.t)}</span>` +
+    (gen ? `<span class="stamp-sub">datos generados ${esc(gen)}</span>` : "");
+} else {
+  $("stamp").innerHTML = "";
+}
 renderZones(); renderTrend(); renderLeadZones(); renderListingTable(); renderPicker();
 let savedL = null, savedV = null;
 try { savedL = localStorage.getItem("airbnb_listing"); savedV = localStorage.getItem("airbnb_view"); } catch (e) {}

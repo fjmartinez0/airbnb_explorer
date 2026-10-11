@@ -32,7 +32,8 @@ airbnb_explorer/
 │   ├── storage.py          Archivos CSV y registro
 │   ├── analysis.py         Detección de reservas y métricas
 │   ├── viewer_data.py      Genera viewer/data.js
-│   └── notify.py           Notificaciones por ntfy
+│   ├── notify.py           Notificaciones por ntfy
+│   └── publish.py          Publicación del visor en GitHub Pages
 ├── viewer/index.html       Visor (se abre en cualquier navegador)
 ├── scheduling/             Programación diaria en macOS (launchd)
 ├── listings.example.json   Plantilla de anuncios
@@ -75,6 +76,9 @@ cp settings.example.json settings.json
 | `start_delay_minutes` | Espera aleatoria opcional antes de una corrida programada (por defecto 0: sin espera). |
 | `pause_between_listings_seconds` | Pausa aleatoria entre anuncios (por defecto 60 a 300 s: de 1 a 5 min). |
 | `retry_failed` | Reintenta una vez el anuncio que falle. |
+| `publish_github_pages` | Publica el visor en la rama `gh-pages` después de cada captura. |
+| `public_url` | Dirección del visor publicado; la notificación la abre al tocarla. |
+| `public_include_identifiers` | Incluye nombres de anfitriones e IDs en la copia pública (por defecto no). |
 
 Los canales del servidor público de ntfy son abiertos: cualquiera que conozca el nombre puede leerlos. Por eso la notificación solo incluye etiquetas, estados y conteos.
 
@@ -99,6 +103,16 @@ launchctl start com.airbnb-explorer.capture   # probar ahora
 ```
 
 Si el Mac está dormido a la hora programada, la captura corre al despertar.
+
+### Visor en internet (GitHub Pages)
+
+Con `publish_github_pages` activo, cada captura reconstruye el sitio (visor + datos) y lo sube como un único commit a la rama `gh-pages`, sin tocar `main`. La primera vez:
+
+```bash
+python3 -m explorer publish
+```
+
+y en GitHub: **Settings → Pages → Deploy from a branch → `gh-pages` / root**. Por defecto la copia pública omite nombres de anfitriones e IDs de anuncios; la copia local los conserva.
 
 ## Datos generados
 

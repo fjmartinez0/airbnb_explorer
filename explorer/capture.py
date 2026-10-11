@@ -99,5 +99,13 @@ def run_capture(listings: list[Listing], settings: dict, visible: bool = False,
 
     export_viewer_data()
     title, body, priority, tags = notify.capture_summary(results)
+    if settings.get("publish_github_pages"):
+        from .publish import publish_site
+        try:
+            publish_site(settings)
+        except Exception as exc:  # publishing must never lose the capture
+            log(f"No se pudo publicar en GitHub Pages: {exc}")
+            body += "\n⚠ No se pudo publicar el visor en GitHub Pages"
+            priority = max(priority, 4)
     notify.send(settings, title, body, priority, tags)
     return sum(1 for r in results if r["status"] != "ok")
