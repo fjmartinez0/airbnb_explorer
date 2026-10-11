@@ -1,0 +1,8 @@
+{
+  "listings": [
+    {"label": "lago-1", "id": "REEMPLAZAR_ID", "zone": "El Lago", "host": ""},
+    {"label": "lago-2", "id": "REEMPLAZAR_ID", "zone": "El Lago", "host": ""},
+    {"label": "galerias-1", "id": "REEMPLAZAR_ID", "zone": "Galerías", "host": ""},
+    {"label": "galerias-2", "id": "REEMPLAZAR_ID", "zone": "Galerías", "host": ""}
+  ]
+}

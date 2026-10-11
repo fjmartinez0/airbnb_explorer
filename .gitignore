@@ -1,0 +1,15 @@
+# Datos capturados y configuración personal: nunca se suben
+data/
+listings.json
+viewer/data.js
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# macOS
+.DS_Store
+
+# Ajustes personales (canal de notificaciones)
+settings.json

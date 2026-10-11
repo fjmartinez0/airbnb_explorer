@@ -1,0 +1,7 @@
+{
+  "ntfy_topic": "",
+  "ntfy_server": "https://ntfy.sh",
+  "start_delay_minutes": 0,
+  "pause_between_listings_seconds": [60, 300],
+  "retry_failed": true
+}
