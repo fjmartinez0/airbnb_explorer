@@ -45,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             failures = run_capture(listings, settings, visible=args.visible, scheduled=args.scheduled)
         except Exception as exc:
-            notify.send(settings, "Airbnb explorer · la captura falló",
+            notify.send(settings, "Airbnb Explorer · la captura falló",
                         f"{type(exc).__name__}: {exc}"[:500], priority=5, tags=["rotating_light"])
             traceback.print_exc()
             return 2
@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None) -> int:
         from . import notify
         if not settings.get("ntfy_topic"):
             raise SystemExit("Falta ntfy_topic en settings.json.")
-        sent = notify.send(settings, "Airbnb explorer · prueba",
+        sent = notify.send(settings, "Airbnb Explorer · prueba",
                            "Si ves esto, las notificaciones funcionan.", tags=["tada"])
         print(f"Enviada al canal '{settings['ntfy_topic']}'." if sent else "No se pudo enviar; revisa data/capture.log.")
         return 0 if sent else 1
