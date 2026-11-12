@@ -9,8 +9,8 @@ Proyecto personal y educativo. Nació para contrastar las estimaciones de ocupac
 1. **Captura** (`capture`): una vez al día abre cada anuncio en un navegador controlado por [Playwright](https://playwright.dev/python/), copia la respuesta del calendario que el propio sitio carga y la guarda.
 2. **Comparación** (`analyze`): compara cada captura con la anterior. Una noche futura que pasa de *libre* a *no disponible* es una reserva probable. Una que pasa de *no disponible* a *libre* es una cancelación o un desbloqueo.
 3. **Visor** (`viewer/index.html`): dos vistas.
-   - **Resumen por zona:** ocupación promedio, tendencia de noches no disponibles, anticipación de reserva y tabla de anuncios, agrupados por las zonas que tú defines.
-   - **Detalle por anuncio:** la matriz noche × día de captura, la anticipación y los eventos de un anuncio.
+   - **Resumen por zona:** métricas por periodo (7, 14, 30 días o todo), mapa de los próximos 30 días por anuncio, tendencia de noches no disponibles, anticipación de reserva, tabla de anuncios y salud de la captura (con aviso cuando la última corrida falla).
+   - **Detalle por anuncio:** ventana móvil con las próximas 30 o 60 noches desde la última captura × las últimas 7, 14 o 30 capturas; las capturas fallidas se ven como columnas rayadas.
 
 ### Limitaciones
 

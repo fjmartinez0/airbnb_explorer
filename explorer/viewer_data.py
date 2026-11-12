@@ -35,7 +35,25 @@ def listing_details(snapshots: list[dict]) -> dict[str, dict]:
     return details
 
 
-def build_viewer_data(rows: list[dict], details: dict[str, dict] | None = None) -> dict:
+def capture_runs(snapshots: list[dict]) -> list[dict]:
+    """Capture health per day: how many listings ended the day with status ok.
+
+    A retry or a later run on the same day overrides earlier rows for that listing.
+    """
+    final: dict[tuple, tuple] = {}
+    for snap in snapshots:  # chronological
+        final[(snap["observed_date"], snap["label"])] = (snap.get("observed_time", ""), snap.get("status", ""))
+    by_date: dict[str, dict] = {}
+    for (day, _label), (run_time, status) in final.items():
+        entry = by_date.setdefault(day, {"date": day, "time": run_time, "ok": 0, "total": 0})
+        entry["total"] += 1
+        entry["ok"] += status == "ok"
+        entry["time"] = max(entry["time"], run_time)
+    return [by_date[d] for d in sorted(by_date)]
+
+
+def build_viewer_data(rows: list[dict], details: dict[str, dict] | None = None,
+                      runs: list[dict] | None = None) -> dict:
     # Keep only the last run of each day for each listing.
     latest: dict[tuple, dict] = {}
     for row in rows:
@@ -66,11 +84,13 @@ def build_viewer_data(rows: list[dict], details: dict[str, dict] | None = None) 
             "start": first.isoformat(), "availability": availability,
         })
     return {"generated_at": datetime.now().isoformat(timespec="minutes"),
+            "runs": runs or [],
             "listings": list(listings.values())}
 
 
 def export_viewer_data() -> None:
-    data = build_viewer_data(read_rows(CALENDAR_CSV), listing_details(read_rows(SNAPSHOTS_CSV)))
+    snapshots = read_rows(SNAPSHOTS_CSV)
+    data = build_viewer_data(read_rows(CALENDAR_CSV), listing_details(snapshots), capture_runs(snapshots))
     VIEWER_DATA_JS.parent.mkdir(parents=True, exist_ok=True)
     VIEWER_DATA_JS.write_text(
         "window.AIRBNB_DATA = " + json.dumps(data, ensure_ascii=False) + ";\n", encoding="utf-8")
