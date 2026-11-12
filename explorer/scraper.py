@@ -1,7 +1,7 @@
 """Open a listing in a real browser and catch the calendar Airbnb loads for it.
 
 The calendar is not in the page HTML: the site requests it with JavaScript
-(the "PdpAvailabilityCalendar" call). Letting a real browser load the page and
+(an API call whose name contains "AvailabilityCalendar"). Letting a real browser load the page and
 copying that response avoids hard-coding Airbnb's internal URLs or API keys.
 
 The browser keeps a persistent profile (cookies, cache) between runs and moves
@@ -19,7 +19,11 @@ from playwright.sync_api import BrowserContext, sync_playwright
 
 from .config import BROWSER_PROFILE_DIR
 
-CALENDAR_OPERATION = "PdpAvailabilityCalendar"
+# Airbnb renames this call from time to time:
+#   until 9 Nov 2026: PdpAvailabilityCalendar
+#   from 10 Nov 2026: StaysPdpAtomicAvailabilityCalendarV2Query
+# Any API call whose name contains this marker is treated as the calendar.
+CALENDAR_MARKER = "AvailabilityCalendar"
 LISTING_URL = "https://www.airbnb.com.co/rooms/{listing_id}?currency=COP"
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -61,7 +65,7 @@ def fetch_calendar(context: BrowserContext, listing_id: str, max_wait_s: int = 4
     page = context.new_page()
 
     def on_response(response):
-        if CALENDAR_OPERATION in response.url:
+        if CALENDAR_MARKER in response.url and "/api/" in response.url:
             try:
                 result.payloads.append(response.json())
             except Exception:

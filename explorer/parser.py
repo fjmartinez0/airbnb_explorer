@@ -26,27 +26,54 @@ def find_key(obj: Any, key: str) -> Any:
     return None
 
 
+def _calendar_days(obj):
+    """Every object that carries a calendarDate, wherever it sits in the response.
+
+    Walking the whole response (instead of a fixed path such as
+    calendarMonths -> days) survives Airbnb's renames of the surrounding structure.
+    """
+    if isinstance(obj, dict):
+        if obj.get("calendarDate"):
+            yield obj
+            return
+        for value in obj.values():
+            yield from _calendar_days(value)
+    elif isinstance(obj, list):
+        for value in obj:
+            yield from _calendar_days(value)
+
+
+def _first(day: dict, *keys):
+    for key in keys:
+        if day.get(key) is not None:
+            return day[key]
+    return None
+
+
 def parse_calendar(payloads: list[dict]) -> list[dict]:
-    """Merge the days of every captured calendar response, one record per date."""
+    """Merge the days of every captured calendar response, one record per date.
+
+    Days without a recognisable availability flag are skipped; if none has one,
+    the capture is reported as format_changed and the raw response is kept.
+    """
     days: dict[str, dict] = {}
     for payload in payloads:
-        for month in find_key(payload, "calendarMonths") or []:
-            for day in month.get("days") or []:
-                date = day.get("calendarDate")
-                if not date:
-                    continue
-                price = day.get("price") or {}
-                if isinstance(price, dict):
-                    price = price.get("localPriceFormatted") or price.get("localPrice") or ""
-                days[date] = {
-                    "date": date,
-                    "available": day.get("available"),
-                    "available_checkin": day.get("availableForCheckin"),
-                    "available_checkout": day.get("availableForCheckout"),
-                    "min_nights": day.get("minNights"),
-                    "max_nights": day.get("maxNights"),
-                    "price": price or "",
-                }
+        for day in _calendar_days(payload):
+            available = _first(day, "available", "isAvailable")
+            if not isinstance(available, bool):
+                continue
+            price = day.get("price") or {}
+            if isinstance(price, dict):
+                price = price.get("localPriceFormatted") or price.get("localPrice") or ""
+            days[day["calendarDate"]] = {
+                "date": day["calendarDate"],
+                "available": available,
+                "available_checkin": _first(day, "availableForCheckin", "isAvailableForCheckin"),
+                "available_checkout": _first(day, "availableForCheckout", "isAvailableForCheckout"),
+                "min_nights": _first(day, "minNights", "minimumNights"),
+                "max_nights": _first(day, "maxNights", "maximumNights"),
+                "price": price or "",
+            }
     return [days[d] for d in sorted(days)]
 
 
