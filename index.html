@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Airbnb Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="data.js" onerror="window.AIRBNB_DATA = window.AIRBNB_DATA || null"></script>
+<style>
+/* Layout: Resumen (métricas por periodo, próximos 30 días por anuncio, tendencias, salud de la captura) y Detalle (ventana móvil: noches desde hoy × últimas capturas). */
+:root {
+  --bg: #F6F7F9; --surface: #FFFFFF; --line: #DDE1E8; --fg: #1B2230; --muted: #5D6677;
+  --free: #E9EDF2; --occ: #2F6DB0; --new: #E07B1A; --rel: #B0479A; --dot: #FFFFFF;
+  --miss: #EEF0F3; --misshatch: #D3D7DE; --accent: #2F6DB0;
+  --good: #2E8540; --warn: #B7791F; --bad: #C53030;
+  --z1: #2a78d6; --z2: #eb6834; --z3: #1baf7a; --z4: #eda100; --z5: #e87ba4; --z6: #008300;
+  --f-body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14171C; --surface: #1C2027; --line: #2E3440; --fg: #E6E9EE; --muted: #9AA3B2;
+    --free: #262B34; --occ: #4682C8; --new: #D27A2E; --rel: #B85AA6; --dot: #14171C;
+    --miss: #1A1D23; --misshatch: #2B3039; --accent: #6FA2DD;
+    --good: #48A860; --warn: #D69E2E; --bad: #E05252;
+    --z1: #3987e5; --z2: #d95926; --z3: #199e70; --z4: #c98500; --z5: #d55181; --z6: #008300;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14171C; --surface: #1C2027; --line: #2E3440; --fg: #E6E9EE; --muted: #9AA3B2;
+  --free: #262B34; --occ: #4682C8; --new: #D27A2E; --rel: #B85AA6; --dot: #14171C;
+  --miss: #1A1D23; --misshatch: #2B3039; --accent: #6FA2DD;
+  --good: #48A860; --warn: #D69E2E; --bad: #E05252;
+  --z1: #3987e5; --z2: #d95926; --z3: #199e70; --z4: #c98500; --z5: #d55181; --z6: #008300;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+[hidden] { display: none !important; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 48px; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
+h1 { font-size: 1.6rem; font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+.sub { color: var(--muted); margin: 4px 0 0; max-width: 62ch; font-size: 0.92rem; }
+.badge { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--new); color: var(--fg); }
+.badge.real { border-color: var(--occ); }
+.stamp { display: grid; gap: 1px; text-align: right; }
+.stamp .lab { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.stamp .val { font-family: var(--f-mono); font-size: 0.9rem; }
+.stamp .st { font-family: var(--f-mono); font-size: 0.78rem; font-weight: 500; }
+@media (max-width: 600px) { .stamp { text-align: left; } }
+.st.g { color: var(--good); } .st.w { color: var(--warn); } .st.b { color: var(--bad); }
+
+.alert { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--bad); border-left-width: 4px; background: var(--surface); border-radius: 8px; padding: 12px 14px; }
+.alert.w { border-color: var(--warn); }
+.alert p { margin: 0; font-size: 0.9rem; }
+.ico { width: 20px; height: 20px; border-radius: 50%; background: var(--bad); color: var(--surface); font-weight: 700; display: grid; place-items: center; font-size: 0.8rem; flex: none; margin-top: 1px; }
+.alert.w .ico { background: var(--warn); }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab { font: inherit; font-weight: 700; font-size: 0.95rem; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); padding: 10px 14px 9px; cursor: pointer; white-space: nowrap; }
+.tab:hover { color: var(--fg); }
+.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.tab:focus-visible, .seg button:focus-visible, select:focus-visible, tr.click:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.view { display: grid; gap: 18px; }
+
+.bar { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.bar .lbl { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--surface); }
+.seg button { font: inherit; font-size: 0.85rem; border: 0; background: none; color: var(--muted); padding: 6px 12px; cursor: pointer; font-weight: 600; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); }
+select { font: inherit; font-size: 0.92rem; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; max-width: 100%; }
+
+.zones { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.zone { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; }
+.zone-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.zone-name { font-weight: 700; font-size: 1.02rem; display: inline-flex; gap: 8px; align-items: center; }
+.zone-name i, .zchip i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.zone-n { font-family: var(--f-mono); font-size: 0.76rem; color: var(--muted); }
+.hero .val { font-family: var(--f-mono); font-size: 1.8rem; font-weight: 500; line-height: 1.2; display: block; font-variant-numeric: tabular-nums; }
+.hero .lab { font-size: 0.8rem; color: var(--muted); }
+dl.rows { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+dl.rows dt { color: var(--muted); font-size: 0.84rem; }
+dl.rows dd { margin: 0; font-family: var(--f-mono); font-size: 0.86rem; text-align: right; font-variant-numeric: tabular-nums; }
+
+.grid2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.gridd { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 860px) { .grid2, .gridd { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; min-width: 0; display: grid; gap: 12px; align-content: start; }
+.panel h2 { font-size: 1rem; margin: 0; font-weight: 700; }
+.panel p.note { margin: 0; color: var(--muted); font-size: 0.85rem; max-width: 70ch; }
+.side { display: grid; gap: 18px; min-width: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 0.8rem; color: var(--muted); }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.sw { width: 13px; height: 13px; border-radius: 3px; display: inline-block; position: relative; }
+
+.scroll { overflow: auto; }
+.scroll.tall { max-height: 640px; }
+table.hm { border-collapse: separate; border-spacing: 2px; font-family: var(--f-mono); font-size: 0.68rem; }
+table.hm th { font-weight: 500; color: var(--muted); background: var(--surface); }
+table.hm thead th { position: sticky; top: 0; z-index: 2; text-align: center; padding: 2px 0; min-width: 16px; line-height: 1.15; }
+table.hm thead th.we { color: var(--fg); font-weight: 600; }
+table.hm thead th.missh { color: var(--bad); }
+table.hm tbody th { position: sticky; left: 0; z-index: 1; text-align: left; padding-right: 10px; white-space: nowrap; font-family: var(--f-body); font-size: 0.8rem; color: var(--fg); font-weight: 600; }
+table.hm tbody th.night { font-family: var(--f-mono); font-weight: 500; font-size: 0.7rem; text-align: right; color: var(--muted); }
+table.hm tbody th.night.we { color: var(--fg); font-weight: 600; }
+table.hm thead th.corner { left: 0; z-index: 3; text-align: right; padding-right: 8px; }
+table.hm tr.zrow th { padding-top: 8px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+table.hm tr.lrow th { cursor: pointer; }
+table.hm tr.lrow th:hover { color: var(--accent); }
+table.hm td.pct { font-family: var(--f-mono); font-size: 0.75rem; padding-left: 8px; color: var(--fg); text-align: right; white-space: nowrap; }
+td.c { width: 16px; height: 15px; border-radius: 3px; padding: 0; position: relative; }
+td.free { background: var(--free); } td.occ { background: var(--occ); } td.new { background: var(--new); } td.rel { background: var(--rel); }
+td.na { background: transparent; }
+td.new::after, .sw.new::after { content: ""; position: absolute; inset: 0; margin: auto; width: 5px; height: 5px; border-radius: 50%; background: var(--dot); }
+td.rel::after, .sw.rel::after { content: ""; position: absolute; inset: 3px 5px; border-left: 2px solid var(--dot); border-right: 2px solid var(--dot); }
+td.miss, .sw.miss { background: repeating-linear-gradient(135deg, var(--miss) 0 3px, var(--misshatch) 3px 5px); }
+td.c:hover { outline: 2px solid var(--fg); }
+
+.health { display: flex; gap: 3px; }
+.hd { width: 22px; height: 30px; border-radius: 4px; flex: none; display: grid; place-items: end center; font-family: var(--f-mono); font-size: 0.6rem; color: var(--surface); padding-bottom: 2px; }
+.hd.g { background: var(--good); } .hd.w { background: var(--warn); } .hd.b { background: var(--bad); } .hd.n { background: var(--miss); }
+.hl { display: flex; justify-content: space-between; font-family: var(--f-mono); font-size: 0.7rem; color: var(--muted); }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.kpi { background: var(--surface); padding: 12px 14px; display: grid; gap: 2px; }
+.kpi .lab { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+.kpi .val { font-family: var(--f-mono); font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+.kpi .hint { font-size: 0.76rem; color: var(--muted); }
+.listing-meta { font-family: var(--f-mono); font-size: 0.78rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+.listing-meta a { color: var(--accent); }
+
+svg text { fill: var(--muted); font-family: var(--f-mono); font-size: 11px; }
+svg .val { fill: var(--fg); font-weight: 500; }
+svg .lbl { fill: var(--fg); font-family: var(--f-body); font-weight: 600; font-size: 11px; }
+.bar-n { fill: var(--new); }
+.grid-line { stroke: var(--line); stroke-width: 1; }
+.cross { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+
+table.ev { width: 100%; border-collapse: collapse; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+table.ev th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); white-space: nowrap; }
+table.ev th.n, table.ev td.n { text-align: right; }
+table.ev td { padding: 7px 8px; border-bottom: 1px solid var(--line); font-family: var(--f-mono); font-size: 0.8rem; white-space: nowrap; }
+table.ev td.name { font-family: var(--f-body); font-weight: 600; font-size: 0.86rem; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--free); }
+.zchip { display: inline-flex; align-items: center; gap: 6px; font-family: var(--f-body); font-size: 0.82rem; }
+.pill { font-family: var(--f-body); font-size: 0.72rem; font-weight: 600; padding: 2px 7px; border-radius: 10px; color: var(--fg); border: 1px solid; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.pill.new { border-color: var(--new); } .pill.rel { border-color: var(--rel); } .pill.blk { border-color: var(--muted); }
+.pill i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+#tip { position: fixed; pointer-events: none; z-index: 10; background: var(--fg); color: var(--bg); font-size: 0.8rem; line-height: 1.45; padding: 7px 10px; border-radius: 6px; max-width: 280px; }
+#tip .row { display: flex; align-items: center; gap: 6px; }
+#tip i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Airbnb Explorer</h1>
+      <p class="sub">Seguimiento diario del calendario de anuncios de Airbnb. El resumen compara zonas; el detalle muestra qué cambió, noche por noche, en un anuncio.</p>
+    </div>
+    <div class="stamp" id="stamp"></div>
+  </header>
+  <div id="alert" hidden></div>
+
+  <nav class="tabs" role="tablist" aria-label="Vistas">
+    <button class="tab" role="tab" type="button" id="tab-resumen" aria-selected="true">Resumen por zona</button>
+    <button class="tab" role="tab" type="button" id="tab-detalle" aria-selected="false" tabindex="-1">Detalle por anuncio</button>
+  </nav>
+
+  <!-- ================= RESUMEN ================= -->
+  <section class="view" id="view-resumen">
+    <div class="bar">
+      <span class="lbl">Periodo de las métricas</span>
+      <div class="seg" id="period"><button type="button" data-v="7">7 días</button><button type="button" data-v="14">14 días</button><button type="button" data-v="30">30 días</button><button type="button" data-v="all">Todo</button></div>
+      <span class="badge" id="badge">Datos de ejemplo</span>
+    </div>
+    <div class="zones" id="zones"></div>
+
+    <section class="panel">
+      <h2>Próximos 30 días</h2>
+      <p class="note" id="hmSub"></p>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--free)"></i>Libre</span>
+        <span><i class="sw" style="background:var(--occ)"></i>No disponible</span>
+        <span><i class="sw new" style="background:var(--new)"></i>Reservada en los últimos 7 días</span>
+      </div>
+      <div class="scroll"><table class="hm" id="hm"></table></div>
+      <p class="note">Una fila por anuncio. Siempre son las 30 noches siguientes a la última captura: la ventana avanza sola. Toca un anuncio para ver su detalle.</p>
+    </section>
+
+    <div class="grid2">
+      <section class="panel">
+        <h2>Noches no disponibles en los próximos 30 días</h2>
+        <div id="trend"></div>
+        <p class="note">Promedio por zona en cada captura del periodo. Es un techo: incluye bloqueos del anfitrión. Lo que importa es si sube o baja.</p>
+      </section>
+      <section class="panel">
+        <h2>¿Con cuánta anticipación reservan?</h2>
+        <div id="leadZones"></div>
+        <p class="note">Porcentaje de las reservas detectadas en el periodo, por días entre la reserva y la llegada.</p>
+      </section>
+    </div>
+
+    <section class="panel">
+      <h2>Anuncios</h2>
+      <div class="scroll" style="max-height:420px"><table class="ev" id="listingTable"></table></div>
+    </section>
+
+    <section class="panel">
+      <h2>Salud de la captura</h2>
+      <p class="note">Anuncios capturados con éxito cada día, últimos 30 días.</p>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--good)"></i>Todos ok</span>
+        <span><i class="sw" style="background:var(--warn)"></i>Algunos fallaron</span>
+        <span><i class="sw" style="background:var(--bad)"></i>Ninguno</span>
+      </div>
+      <div class="scroll"><div style="display:inline-grid;gap:4px"><div class="health" id="health"></div><div class="hl" id="healthLbl"></div></div></div>
+    </section>
+  </section>
+
+  <!-- ================= DETALLE ================= -->
+  <section class="view" id="view-detalle" hidden>
+    <div class="bar">
+      <label class="lbl" for="listing">Anuncio</label>
+      <select id="listing"></select>
+      <div class="listing-meta" id="meta"></div>
+    </div>
+    <div class="bar">
+      <span class="lbl">Noches hacia adelante</span>
+      <div class="seg" id="nights"><button type="button" data-v="30">30</button><button type="button" data-v="60">60</button></div>
+      <span class="lbl">Capturas</span>
+      <div class="seg" id="ncaps"><button type="button" data-v="7">7</button><button type="button" data-v="14">14</button><button type="button" data-v="30">30</button></div>
+    </div>
+    <section class="kpis" id="kpis"></section>
+    <div class="gridd">
+      <section class="panel">
+        <h2>Noches desde hoy × últimas capturas</h2>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--free)"></i>Libre</span>
+          <span><i class="sw" style="background:var(--occ)"></i>Ocupada (ya estaba)</span>
+          <span><i class="sw new" style="background:var(--new)"></i>Nueva reserva ese día</span>
+          <span><i class="sw rel" style="background:var(--rel)"></i>Liberada</span>
+          <span><i class="sw miss"></i>Captura fallida</span>
+        </div>
+        <div class="scroll tall"><table class="hm" id="mx"></table></div>
+        <p class="note">Filas: las próximas noches desde la última captura. Columnas: las últimas capturas. Lo que cambia de color de una columna a la siguiente es lo que pasó ese día. El historial completo se guarda; esta vista es una ventana que avanza sola.</p>
+      </section>
+      <div class="side">
+        <section class="panel">
+          <h2>Anticipación de las reservas</h2>
+          <div id="hist"></div>
+          <p class="note" id="histNote"></p>
+        </section>
+        <section class="panel">
+          <h2>Eventos detectados</h2>
+          <div class="scroll" style="max-height:360px"><table class="ev" id="ev"></table></div>
+        </section>
+      </div>
+    </div>
+  </section>
+</div>
+<div id="tip" hidden></div>
+
+<script>
+const DAY = 864e5;
+const toD = s => { const [y,m,d] = String(s).slice(0,10).split("-").map(Number); return Date.UTC(y, m-1, d); };
+const iso = t => new Date(t).toISOString().slice(0,10);
+const DOW1 = ["D","L","M","X","J","V","S"], DOW = ["dom","lun","mar","mié","jue","vie","sáb"];
+const MON = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const dd = t => new Date(t).getUTCDate(), dw = t => new Date(t).getUTCDay();
+const fs = t => `${dd(t)} ${MON[new Date(t).getUTCMonth()]}`;
+const fl = t => `${DOW[dw(t)]} ${fs(t)}`;
+const flY = t => `${fl(t)} ${new Date(t).getUTCFullYear()}`;
+const isWE = t => dw(t) === 5 || dw(t) === 6;
+const med = a => { if (!a.length) return null; const s = [...a].sort((x,y)=>x-y), m = s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+const mean = a => a.length ? a.reduce((x,y)=>x+y,0) / a.length : null;
+const pct = v => v == null ? "–" : `${Math.round(v)}%`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $ = id => document.getElementById(id);
+const LONG_BLOCK = 28, NO_ZONE = "Sin zona";
+const LEAD_BINS = [["0–2",0,2],["3–6",3,6],["7–13",7,13],["14–29",14,29],["30+",30,1e9]];
+const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+
+/* ---------- Datos de ejemplo (solo si no hay data.js): 3 zonas, 30 capturas, dos días fallidos ---------- */
+function sampleData() {
+  const END = toD("2026-11-11"), N = 30, H = 365, caps = Array.from({length: N}, (_, i) => END - (N-1-i)*DAY);
+  const failAll = new Set([END - DAY, END]), partial = END - 14*DAY;
+  const rng = a => () => { a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; };
+  const zones = [["Castellana","castellana",7,1.0],["Chapinero","chapinero",6,1.2],["Zona G","zonag",6,0.85]];
+  const leads = [0,0,1,1,2,3,4,5,6,8,10,13,17,24,35];
+  const listings = [];
+  zones.forEach(([zone, slug, n, dem0], zi) => { for (let i = 1; i <= n; i++) {
+    const r = rng(zi*100 + i*7 + 3), dem = dem0 * (0.75 + r()*0.5), av = new Map();
+    for (let k = 0; k < N + H + 10; k++) av.set(caps[0] + k*DAY, true);
+    const book = (f, m) => { for (let j=0;j<m;j++) if (!av.get(f+j*DAY)) return false; for (let j=0;j<m;j++) av.set(f+j*DAY,false); return true; };
+    for (let k = 0; k < 70; ) { if (r() < (k<14?0.28:k<30?0.16:0.07)*dem) { const m=1+Math.floor(r()*4); book(caps[0]+k*DAY,m); k+=m+1; } else k++; }
+    const observations = [];
+    caps.forEach((t, ci) => {
+      if (ci) { const tries = r() < 0.62/dem ? 0 : r() < 0.8 ? 1 : 2;
+        for (let q=0;q<tries;q++) for (let a=0;a<6;a++) if (book(t + leads[Math.floor(r()*leads.length)]*DAY, 1+Math.floor(r()*4))) break;
+        if (r() < 0.04) for (let o=5;o<25;o++) { const x=t+o*DAY; if (!av.get(x)&&!av.get(x+DAY)) { av.set(x,true); av.set(x+DAY,true); break; } } }
+      if (failAll.has(t) || (t === partial && i === 2 && zi < 2)) return;
+      let s = ""; for (let k = 0; k < H; k++) s += av.get(t + k*DAY) ? "1" : "0";
+      observations.push({observed_date: iso(t), observed_time: "07:00", start: iso(t), availability: s});
+    });
+    listings.push({label: `${slug}-${i}`, listing_id: "", zone, host: "", observations});
+  }});
+  const runs = caps.map(t => ({date: iso(t), time: failAll.has(t) ? "07:04" : "07:00", ok: failAll.has(t) ? 19 - 19 : t === partial ? 17 : 19, total: 19}));
+  return {generated_at: null, runs, listings};
+}
+
+/* ---------- Preparación ---------- */
+let LIST = [], ZONES = [], CAPS = [], REF = 0, HEALTH = new Map(), LAST_RUN = null, IS_SAMPLE = true;
+function prepare(data) {
+  LIST = (data.listings || []).map(l => {
+    const obs = (l.observations || []).map(o => ({ t: toD(o.observed_date), time: o.observed_time || "", start: toD(o.start), s: o.availability || "" }))
+      .sort((a, b) => a.t - b.t);
+    if (!obs.length) return null;
+    const host = (l.host || "").trim();
+    return { label: l.label, id: l.listing_id || "", host, name: host ? `${l.label} · ${host}` : l.label,
+             zone: (l.zone || "").trim() || NO_ZONE, obs, byT: new Map(obs.map(o => [o.t, o])) };
+  }).filter(Boolean);
+  const runs = (data.runs || []).map(r => ({ t: toD(r.date), time: r.time || "", ok: +r.ok, total: +r.total }));
+  CAPS = [...new Set([...runs.map(r => r.t), ...LIST.flatMap(l => l.obs.map(o => o.t))])].sort((a, b) => a - b);
+  REF = CAPS[CAPS.length - 1];
+  HEALTH = new Map(CAPS.map(t => { const r = runs.find(x => x.t === t);
+    return [t, r || { t, time: "", ok: LIST.filter(l => l.byT.has(t)).length, total: LIST.length }]; }));
+  LAST_RUN = HEALTH.get(REF);
+  const names = [...new Set(LIST.map(l => l.zone))];
+  ZONES = names.map((name, i) => ({ name, color: `var(--z${(i % 6) + 1})`, listings: LIST.filter(l => l.zone === name) }));
+  LIST.forEach(l => { l.zoneObj = ZONES.find(z => z.name === l.zone); l.events = events(l); l.last = l.obs[l.obs.length - 1]; });
+}
+const at = (o, n) => { if (!o) return null; const c = o.s[(n - o.start) / DAY]; return c === "1" ? true : c === "0" ? false : null; };
+function events(l) {
+  const ev = [];
+  for (let i = 1; i < l.obs.length; i++) {
+    const prev = l.obs[i-1], cur = l.obs[i], booked = [], released = [];
+    for (let k = 0; k < cur.s.length; k++) {
+      const n = cur.start + k*DAY; if (n < cur.t) continue;
+      const a = at(prev, n), b = cur.s[k]; if (a == null || (b !== "0" && b !== "1")) continue;
+      if (a && b === "0") booked.push(n); else if (!a && b === "1") released.push(n);
+    }
+    [["new", booked], ["rel", released]].forEach(([type, ns]) => { let i0 = 0;
+      while (i0 < ns.length) { let j = i0; while (j+1 < ns.length && ns[j+1] - ns[j] === DAY) j++;
+        const nights = j - i0 + 1;
+        ev.push({ type, obs: cur.t, arr: ns[i0], nights, lead: Math.round((ns[i0] - cur.t) / DAY), block: type === "new" && nights >= LONG_BLOCK });
+        i0 = j + 1; } });
+  }
+  return ev;
+}
+const bookings = (l, from, to = Infinity) => l.events.filter(e => e.type === "new" && !e.block && e.obs > from && e.obs <= to);
+function blocked30(o, start) { let b = 0, n = 0; for (let k = 0; k < 30; k++) { const v = at(o, start + k*DAY); if (v != null) { n++; if (!v) b++; } } return n ? 100*b/n : null; }
+function occupancy(l, from) {
+  let n = 0, occ = 0;
+  for (let t = Math.max(from, l.obs[0].t); t < l.last.t; t += DAY) {
+    let seen = null; for (const o of l.obs) { if (o.t > t) break; const v = at(o, t); if (v != null) seen = v; }
+    if (seen != null) { n++; if (!seen) occ++; }
+  }
+  return n ? 100*occ/n : null;
+}
+
+/* ---------- Encabezado y aviso ---------- */
+function renderStatus() {
+  const r = LAST_RUN, cls = r.ok === r.total ? "g" : r.ok ? "w" : "b";
+  const lastGood = Math.max(...LIST.map(l => l.last.t));
+  $("stamp").innerHTML = `<span class="lab">Última captura</span><span class="val">${flY(REF)}${r.time ? " · " + esc(r.time) : ""}</span>` +
+    `<span class="st ${cls}">${cls === "g" ? "✓" : "✕"} ${r.ok}/${r.total} anuncios${cls !== "g" ? ` · último dato bueno: ${fl(lastGood)}` : ""}</span>`;
+  if (cls === "g") { $("alert").hidden = true; return; }
+  let since = REF; for (let i = CAPS.length - 1; i >= 0; i--) { const h = HEALTH.get(CAPS[i]); if (h.ok < h.total) since = CAPS[i]; else break; }
+  $("alert").className = "alert " + (cls === "w" ? "w" : "");
+  $("alert").innerHTML = `<span class="ico" aria-hidden="true">!</span><p><b>${cls === "b" ? "La captura está fallando" : "Algunos anuncios fallaron"}${since < REF ? ` desde el ${fs(since)}` : ""}.</b> Última corrida: ${r.ok} de ${r.total} anuncios. ${cls === "b" ? `Lo que ves usa el último dato bueno (${fl(lastGood)}).` : "Los anuncios que fallaron usan su último dato bueno."}</p>`;
+  $("alert").hidden = false;
+}
+
+/* ---------- Resumen ---------- */
+let PERIOD = store.get("ae_period") || "14";
+const periodFrom = () => PERIOD === "all" ? CAPS[0] - DAY : REF - (+PERIOD)*DAY;
+const periodLabel = () => PERIOD === "all" ? "todo el historial" : `últimos ${PERIOD} días`;
+function zoneStats(z) {
+  const from = periodFrom(), days = Math.max(1, (REF - Math.max(from, CAPS[0])) / DAY);
+  const res = z.listings.flatMap(l => bookings(l, from));
+  return { occ: mean(z.listings.map(l => occupancy(l, from)).filter(v => v != null)),
+           blk: mean(z.listings.map(l => blocked30(l.last, REF)).filter(v => v != null)),
+           perWeek: res.length / z.listings.length / days * 7, res,
+           lead: med(res.map(e => e.lead)), short: res.length ? 100*res.filter(e => e.lead <= 14).length/res.length : null,
+           stay: med(res.map(e => e.nights)) };
+}
+function renderZones() {
+  $("zones").innerHTML = ZONES.map(z => { const s = zoneStats(z); z.stats = s; return `
+    <article class="zone"><div class="zone-head"><span class="zone-name"><i style="background:${z.color}"></i>${esc(z.name)}</span><span class="zone-n">${z.listings.length} anuncio${z.listings.length === 1 ? "" : "s"}</span></div>
+    <div class="hero"><span class="val">${pct(s.occ)}</span><span class="lab">ocupación, ${periodLabel()}</span></div>
+    <dl class="rows"><dt>No disponible próximos 30 d</dt><dd>${pct(s.blk)}</dd>
+    <dt>Reservas por anuncio y semana</dt><dd>${s.perWeek.toFixed(1)}</dd>
+    <dt>Anticipación mediana</dt><dd>${s.lead == null ? "–" : s.lead + " d"}</dd>
+    <dt>Reservadas con ≤14 días</dt><dd>${pct(s.short)}</dd>
+    <dt>Estancia mediana</dt><dd>${s.stay == null ? "–" : s.stay + " noches"}</dd></dl></article>`; }).join("");
+}
+function renderHeat() {
+  const nights = Array.from({length: 30}, (_, k) => REF + k*DAY);
+  $("hmSub").textContent = `Del ${fl(nights[0])} al ${fl(nights[29])}, según la última captura buena de cada anuncio.`;
+  let h = `<thead><tr><th class="corner"></th>${nights.map(n => `<th class="${isWE(n) ? "we" : ""}">${DOW1[dw(n)]}<br>${dd(n)}</th>`).join("")}<th></th></tr></thead><tbody>`;
+  ZONES.forEach(z => {
+    h += `<tr class="zrow"><th colspan="32"><span class="zchip"><i style="background:${z.color}"></i>${esc(z.name)}</span></th></tr>`;
+    z.listings.forEach(l => {
+      let ref7 = l.obs[0]; for (const o of l.obs) if (o.t <= l.last.t - 7*DAY) ref7 = o;
+      let occ = 0, known = 0;
+      h += `<tr class="lrow" data-l="${esc(l.label)}"><th tabindex="0">${esc(l.name)}${l.last.t < REF ? ` <span style="color:var(--bad);font-weight:500">·${fs(l.last.t)}</span>` : ""}</th>` + nights.map(n => {
+        const v = at(l.last, n); let c = "na", t = "sin dato";
+        if (v != null) { known++; if (v) { c = "free"; t = "libre"; } else { occ++; const w = at(ref7, n); c = w === true && ref7 !== l.last ? "new" : "occ"; t = c === "new" ? "reservada en los últimos 7 días" : "no disponible"; } }
+        return `<td class="c ${c}" title="${esc(l.label)} · ${fl(n)}: ${t}"></td>`; }).join("") + `<td class="pct">${known ? Math.round(100*occ/known) + "%" : "–"}</td></tr>`;
+    });
+  });
+  $("hm").innerHTML = h + "</tbody>";
+}
+function renderTrend() {
+  const from = periodFrom(), days = CAPS.filter(t => t > from && LIST.some(l => l.byT.has(t)));
+  const series = ZONES.map(z => ({ z, pts: days.map(t => { const v = z.listings.map(l => l.byT.get(t)).filter(Boolean).map(o => blocked30(o, t)).filter(x => x != null); return v.length ? { t, v: mean(v), n: v.length } : null; }).filter(Boolean) }));
+  if (days.length < 2) { $("trend").innerHTML = `<p class="note">Se necesitan al menos dos capturas en el periodo.</p>`; return; }
+  const W = 520, H = 230, ml = 34, mr = 96, mt = 12, mb = 26;
+  const x = t => ml + (W - ml - mr) * (t - days[0]) / (days[days.length-1] - days[0]);
+  const y = v => mt + (H - mt - mb) * (1 - v / 100);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Noches no disponibles en los próximos 30 días por zona">`;
+  [0,25,50,75,100].forEach(v => s += `<line class="grid-line" x1="${ml}" x2="${W-mr}" y1="${y(v)}" y2="${y(v)}"/><text x="${ml-6}" y="${y(v)+4}" text-anchor="end">${v}%</text>`);
+  const every = Math.max(1, Math.ceil(days.length / 6));
+  days.forEach((t, i) => { if (i % every === 0 || i === days.length-1) s += `<text x="${x(t)}" y="${H-6}" text-anchor="middle">${fs(t)}</text>`; });
+  const ends = series.map(se => { const p = se.pts[se.pts.length-1]; return p ? { se, y: y(p.v), v: p.v } : null; }).filter(Boolean).sort((a, b) => a.y - b.y);
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i-1].y < 14) ends[i].y = ends[i-1].y + 14;
+  series.forEach(({ z, pts }) => {
+    if (pts.length > 1) s += `<path d="${pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ")}" fill="none" stroke="${z.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    const lp = pts[pts.length-1]; if (lp) s += `<circle cx="${x(lp.t)}" cy="${y(lp.v)}" r="4" fill="${z.color}" stroke="var(--surface)" stroke-width="2"/>`;
+  });
+  ends.forEach(e => s += `<text class="lbl" x="${W-mr+8}" y="${e.y+4}">${esc(e.se.z.name)} ${Math.round(e.v)}%</text>`);
+  s += `<line class="cross" id="cross" x1="0" x2="0" y1="${mt}" y2="${H-mb}" visibility="hidden"/><rect x="${ml}" y="${mt}" width="${W-ml-mr}" height="${H-mt-mb}" fill="transparent" id="trendHit"/></svg>`;
+  $("trend").innerHTML = s;
+  const svg = $("trend").querySelector("svg");
+  $("trendHit").onmousemove = e => {
+    const pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    let best = days[0]; days.forEach(t => { if (Math.abs(x(t) - p.x) < Math.abs(x(best) - p.x)) best = t; });
+    $("cross").setAttribute("x1", x(best)); $("cross").setAttribute("x2", x(best)); $("cross").setAttribute("visibility", "visible");
+    showTip(e, `<b>Captura del ${fl(best)}</b>` + series.map(({ z, pts }) => { const q = pts.find(p => p.t === best); return q ? `<div class="row"><i style="background:${z.color}"></i>${esc(z.name)}: ${Math.round(q.v)}% (${q.n} anuncios)</div>` : ""; }).join(""));
+  };
+  $("trendHit").onmouseleave = () => { $("cross").setAttribute("visibility", "hidden"); hideTip(); };
+}
+function renderLeadZones() {
+  const W = 520, H = 230, ml = 34, mr = 8, mt = 30, mb = 34;
+  const counts = ZONES.map(z => LEAD_BINS.map(([, a, b]) => z.stats.res.filter(e => e.lead >= a && e.lead <= b).length));
+  const shares = counts.map((c, j) => { const tot = ZONES[j].stats.res.length; return c.map(v => tot ? 100*v/tot : 0); });
+  const top = Math.max(20, Math.ceil(Math.max(0, ...shares.flat()) / 10) * 10), step = top <= 40 ? 10 : 20;
+  const y = v => mt + (H - mt - mb) * (1 - v / top), gw = (W - ml - mr) / LEAD_BINS.length, nz = Math.max(1, ZONES.length);
+  const bw = Math.max(4, (gw - 20 - 2*(nz-1)) / nz);
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Anticipación de reserva por zona">`;
+  for (let v = 0; v <= top; v += step) s += `<line class="grid-line" x1="${ml}" x2="${W-mr}" y1="${y(v)}" y2="${y(v)}"/><text x="${ml-6}" y="${y(v)+4}" text-anchor="end">${v}%</text>`;
+  let lx = ml; ZONES.forEach(z => { s += `<rect x="${lx}" y="6" width="10" height="10" rx="2" fill="${z.color}"/><text x="${lx+14}" y="15" class="lbl" style="font-weight:500">${esc(z.name)}</text>`; lx += 26 + z.name.length * 7; });
+  LEAD_BINS.forEach((b, i) => {
+    ZONES.forEach((z, j) => { const v = shares[j][i], bx = ml + i*gw + 10 + j*(bw+2), yy = y(v), r = Math.min(3, bw/2, y(0)-yy);
+      if (v > 0) s += `<path d="M${bx},${y(0)} V${yy+r} Q${bx},${yy} ${bx+r},${yy} H${bx+bw-r} Q${bx+bw},${yy} ${bx+bw},${yy+r} V${y(0)} Z" fill="${z.color}"/>`; });
+    s += `<rect data-i="${i}" x="${ml+i*gw}" y="${mt}" width="${gw}" height="${H-mt-mb}" fill="transparent"/><text x="${ml+i*gw+gw/2}" y="${H-mb+16}" text-anchor="middle">${b[0]}</text>`;
+  });
+  s += `<text x="${(W+ml)/2}" y="${H-4}" text-anchor="middle">días de anticipación</text></svg>`;
+  $("leadZones").innerHTML = s;
+  const svg = $("leadZones").querySelector("svg");
+  svg.onmousemove = e => { const el = e.target.closest("[data-i]"); if (!el) return hideTip(); const i = +el.dataset.i;
+    showTip(e, `<b>${LEAD_BINS[i][0]} días</b>` + ZONES.map((z, j) => `<div class="row"><i style="background:${z.color}"></i>${esc(z.name)}: ${Math.round(shares[j][i])}% (${counts[j][i]} reservas)</div>`).join("")); };
+  svg.onmouseleave = hideTip;
+}
+function renderTable() {
+  const from = periodFrom();
+  $("listingTable").innerHTML = `<thead><tr><th>Anuncio</th><th>Zona</th><th class="n">Ocupación</th><th class="n">No disp. 30 d</th><th class="n">Reservas</th><th class="n">Antic. mediana</th><th class="n">Último dato</th></tr></thead><tbody>` +
+    ZONES.flatMap(z => z.listings).map(l => { const res = bookings(l, from), lead = med(res.map(e => e.lead));
+      return `<tr class="click" tabindex="0" data-l="${esc(l.label)}"><td class="name">${esc(l.name)}</td><td><span class="zchip"><i style="background:${l.zoneObj.color}"></i>${esc(l.zone)}</span></td><td class="n">${pct(occupancy(l, from))}</td><td class="n">${pct(blocked30(l.last, REF))}</td><td class="n">${res.length}</td><td class="n">${lead == null ? "–" : lead + " d"}</td><td class="n" style="${l.last.t < REF ? "color:var(--bad)" : ""}">${fs(l.last.t)}</td></tr>`; }).join("") + `</tbody>`;
+}
+function renderHealth() {
+  const days = CAPS.slice(-30);
+  $("health").innerHTML = days.map(t => { const h = HEALTH.get(t), c = h.ok === h.total ? "g" : h.ok ? "w" : "b";
+    return `<div class="hd ${c}" title="${fl(t)}${h.time ? " · " + esc(h.time) : ""}: ${h.ok}/${h.total} ok">${c === "g" ? "" : h.ok}</div>`; }).join("");
+  $("healthLbl").innerHTML = `<span>${fs(days[0])}</span><span>${fs(days[days.length-1])}</span>`;
+}
+function renderSummary() { renderZones(); renderHeat(); renderTrend(); renderLeadZones(); renderTable(); renderHealth(); }
+
+/* ---------- Detalle ---------- */
+let NIGHTS = +(store.get("ae_nights") || 30), NCAPS = +(store.get("ae_ncaps") || 14), ACTIVE = null;
+function renderDetail(label) {
+  const l = LIST.find(x => x.label === label) || LIST[0]; if (!l) return;
+  ACTIVE = l.label; $("listing").value = l.label; store.set("ae_listing", l.label);
+  const real = !IS_SAMPLE && /^\d+$/.test(l.id);
+  $("meta").innerHTML = `<span class="zchip"><i style="background:${l.zoneObj.color}"></i>${esc(l.zone)}</span>` + (l.id ? `<span>ID ${esc(l.id)}</span>` : "") + (real ? `<a href="https://www.airbnb.com.co/rooms/${esc(l.id)}" target="_blank" rel="noopener">Ver en Airbnb</a>` : "");
+  const win = CAPS.slice(-NCAPS), nights = Array.from({length: NIGHTS}, (_, k) => REF + k*DAY);
+  const cell = new Map(); l.events.forEach(e => { for (let j = 0; j < e.nights; j++) cell.set(`${e.arr + j*DAY}|${e.obs}`, e); });
+  let h = `<thead><tr><th class="corner">noche \\ captura</th>${win.map(t => `<th class="${l.byT.has(t) ? "" : "missh"}" title="${fl(t)}${l.byT.has(t) ? "" : " · captura fallida"}">${dd(t)}</th>`).join("")}</tr></thead><tbody>`;
+  nights.forEach(n => {
+    let prev = null; for (const o of l.obs) { if (o.t >= win[0]) break; const v = at(o, n); if (v != null) prev = v; }
+    h += `<tr><th class="night ${isWE(n) ? "we" : ""}">${fl(n)}</th>`;
+    win.forEach(t => { const o = l.byT.get(t); let c;
+      if (!o) c = "miss"; else { const v = at(o, n); if (v == null) c = "na"; else { c = v ? (prev === false ? "rel" : "free") : (prev === true ? "new" : "occ"); prev = v; } }
+      h += `<td class="c ${c}" data-n="${n}" data-t="${t}" data-c="${c}"></td>`; });
+    h += "</tr>";
+  });
+  $("mx").innerHTML = h + "</tbody>";
+  const label2 = { free: "Libre", occ: "Ocupada", new: "Nueva reserva", rel: "Liberada", miss: "Captura fallida", na: "Sin dato" };
+  $("mx").onmousemove = e => { const td = e.target.closest("td.c"); if (!td) return hideTip();
+    const n = +td.dataset.n, t = +td.dataset.t, c = td.dataset.c, ev = cell.get(`${n}|${t}`);
+    showTip(e, `<b>Noche ${fl(n)}</b><br>Captura del ${fl(t)}: ${label2[c]}` + (ev && (c === "new" || c === "rel") ? `<br>${ev.type === "new" ? "Reserva" : "Liberación"} de ${ev.nights} noche${ev.nights > 1 ? "s" : ""} desde ${fs(ev.arr)}<br>Anticipación: ${ev.lead} días${ev.block ? "<br>Bloque largo: posible bloqueo" : ""}` : "")); };
+  $("mx").onmouseleave = hideTip;
+
+  const from = win[0] - DAY, res = bookings(l, from), evs = l.events.filter(e => e.obs > from);
+  const failed = win.filter(t => !l.byT.has(t)).length, short = res.length ? 100*res.filter(e => e.lead <= 14).length/res.length : null;
+  const items = [
+    ["No disponible próximos 30 d", pct(blocked30(l.last, REF)), l.last.t < REF ? `dato del ${fs(l.last.t)}` : "techo: incluye bloqueos"],
+    ["Reservas nuevas", res.length, `${res.reduce((s, e) => s + e.nights, 0)} noches · últimas ${win.length} capturas`],
+    ["Anticipación mediana", (med(res.map(e => e.lead)) ?? "–") + (res.length ? " d" : ""), "días entre reservar y llegar"],
+    ["Reservadas con ≤14 días", pct(short), "lo que un corte trimestral no ve"],
+    ["Noches liberadas", evs.filter(e => e.type === "rel").reduce((s, e) => s + e.nights, 0), "cancelaciones o desbloqueos"],
+    ["Capturas fallidas", failed, `de las últimas ${win.length}`],
+  ];
+  $("kpis").innerHTML = items.map(([a, v, hh]) => `<div class="kpi"><span class="lab">${a}</span><span class="val">${v}</span><span class="hint">${hh}</span></div>`).join("");
+  renderHist(res, win.length); renderEvents(evs);
+}
+function renderHist(res, n) {
+  const counts = LEAD_BINS.map(([, a, b]) => res.filter(e => e.lead >= a && e.lead <= b).length);
+  const W = 360, H = 190, ml = 28, mr = 8, mt = 18, mb = 34, max = Math.max(1, ...counts);
+  const step = Math.max(1, Math.ceil(max / 4)), top = Math.ceil(max / step) * step, y = v => mt + (H - mt - mb) * (1 - v / top), bw = (W - ml - mr) / LEAD_BINS.length;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Reservas por días de anticipación">`;
+  for (let v = 0; v <= top; v += step) s += `<line class="grid-line" x1="${ml}" x2="${W-mr}" y1="${y(v)}" y2="${y(v)}"/><text x="${ml-6}" y="${y(v)+4}" text-anchor="end">${v}</text>`;
+  counts.forEach((c, i) => { const x = ml + i*bw + 6, w = bw - 12, yy = y(c);
+    if (c > 0) s += `<path class="bar-n" d="M${x},${y(0)} V${yy+4} Q${x},${yy} ${x+4},${yy} H${x+w-4} Q${x+w},${yy} ${x+w},${yy+4} V${y(0)} Z"/><text class="val" x="${x+w/2}" y="${yy-5}" text-anchor="middle">${c}</text>`;
+    s += `<text x="${x+w/2}" y="${H-mb+16}" text-anchor="middle">${LEAD_BINS[i][0]}</text>`; });
+  s += `<text x="${(W+ml)/2}" y="${H-4}" text-anchor="middle">días de anticipación</text></svg>`;
+  $("hist").innerHTML = s;
+  const tot = counts.reduce((a, b) => a + b, 0);
+  $("histNote").textContent = tot ? `${tot} reservas detectadas en las últimas ${n} capturas.` : "Sin reservas nuevas en la ventana elegida.";
+}
+function renderEvents(evs) {
+  const ev = [...evs].sort((a, b) => b.obs - a.obs || a.arr - b.arr);
+  if (!ev.length) { $("ev").innerHTML = `<tbody><tr><td style="font-family:var(--f-body);white-space:normal">Sin cambios en la ventana elegida.</td></tr></tbody>`; return; }
+  $("ev").innerHTML = `<thead><tr><th>Visto</th><th>Tipo</th><th>Llegada</th><th class="n">Noches</th><th class="n">Antic.</th></tr></thead><tbody>` +
+    ev.map(e => { const p = e.block ? `<span class="pill blk">Posible bloqueo</span>` : e.type === "new" ? `<span class="pill new"><i style="background:var(--new)"></i>Reserva</span>` : `<span class="pill rel"><i style="background:var(--rel)"></i>Liberada</span>`;
+      return `<tr><td>${fs(e.obs)}</td><td>${p}</td><td>${fs(e.arr)}</td><td class="n">${e.nights}</td><td class="n">${e.lead} d</td></tr>`; }).join("") + `</tbody>`;
+}
+
+/* ---------- Tooltip y controles ---------- */
+const tip = $("tip");
+function showTip(e, html) { tip.innerHTML = html; tip.hidden = false; const pad = 14; let x = e.clientX + pad, y = e.clientY + pad; const w = tip.offsetWidth, h = tip.offsetHeight; if (x + w > innerWidth - 8) x = e.clientX - w - pad; if (y + h > innerHeight - 8) y = e.clientY - h - pad; tip.style.left = x + "px"; tip.style.top = y + "px"; }
+function hideTip() { tip.hidden = true; }
+function seg(id, value, cb) {
+  const el = $(id); [...el.children].forEach(b => b.setAttribute("aria-pressed", b.dataset.v === String(value)));
+  el.addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; [...el.children].forEach(x => x.setAttribute("aria-pressed", x === b)); cb(b.dataset.v); });
+}
+const VIEWS = ["resumen", "detalle"];
+function showView(v) { VIEWS.forEach(k => { const on = k === v; $("tab-" + k).setAttribute("aria-selected", on); $("tab-" + k).tabIndex = on ? 0 : -1; $("view-" + k).hidden = !on; }); store.set("ae_view", v); hideTip(); }
+function openListing(label) { renderDetail(label); showView("detalle"); window.scrollTo({ top: 0 }); }
+VIEWS.forEach(v => $("tab-" + v).onclick = () => showView(v));
+document.querySelector(".tabs").addEventListener("keydown", e => { if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return; const cur = VIEWS.find(v => $("tab-" + v).getAttribute("aria-selected") === "true"), nx = VIEWS[(VIEWS.indexOf(cur) + 1) % 2]; showView(nx); $("tab-" + nx).focus(); });
+["hm", "listingTable"].forEach(id => {
+  $(id).addEventListener("click", e => { const r = e.target.closest("tr[data-l]"); if (r && (id === "listingTable" || e.target.closest("th"))) openListing(r.dataset.l); });
+  $(id).addEventListener("keydown", e => { if (e.key !== "Enter") return; const r = e.target.closest("tr[data-l]"); if (r) openListing(r.dataset.l); });
+});
+$("listing").onchange = e => renderDetail(e.target.value);
+
+/* ---------- Arranque ---------- */
+const real = window.AIRBNB_DATA && (window.AIRBNB_DATA.listings || []).length;
+IS_SAMPLE = !real;
+prepare(real ? window.AIRBNB_DATA : sampleData());
+$("badge").textContent = real ? "Tus datos" : "Datos de ejemplo";
+$("badge").classList.toggle("real", !!real);
+renderStatus();
+seg("period", PERIOD, v => { PERIOD = v; store.set("ae_period", v); renderSummary(); });
+seg("nights", NIGHTS, v => { NIGHTS = +v; store.set("ae_nights", v); renderDetail(ACTIVE); });
+seg("ncaps", NCAPS, v => { NCAPS = +v; store.set("ae_ncaps", v); renderDetail(ACTIVE); });
+$("listing").innerHTML = ZONES.map(z => `<optgroup label="${esc(z.name)}">${z.listings.map(l => `<option value="${esc(l.label)}">${esc(l.name)}</option>`).join("")}</optgroup>`).join("");
+renderSummary();
+const saved = store.get("ae_listing");
+renderDetail(LIST.some(l => l.label === saved) ? saved : (LIST[0] || {}).label);
+const hash = (location.hash || "").slice(1), savedV = store.get("ae_view");
+showView(VIEWS.includes(hash) ? hash : VIEWS.includes(savedV) ? savedV : "resumen");
+</script>
+</body>
+</html>
