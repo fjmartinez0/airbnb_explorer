@@ -20,6 +20,14 @@ SNAPSHOT_FIELDS = [
 ]
 
 
+PRICE_FIELDS = [
+    "observed_date", "observed_time", "label", "listing_id", "status",
+    "check_in", "check_out", "nights", "guests", "lead_days", "weekend",
+    "total", "per_night", "nightly_rate", "cleaning", "service_fee", "taxes", "discount",
+    "display_style", "items", "note",
+]
+
+
 def append_rows(path: Path, fields: list[str], rows: list[dict]) -> None:
     """Append rows to a CSV, writing the header the first time."""
     path.parent.mkdir(parents=True, exist_ok=True)

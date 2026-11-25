@@ -12,6 +12,7 @@ RAW_DIR = DATA_DIR / "raw"
 ANALYSIS_DIR = DATA_DIR / "analysis"
 CALENDAR_CSV = DATA_DIR / "calendar.csv"
 SNAPSHOTS_CSV = DATA_DIR / "snapshots.csv"
+PRICES_CSV = DATA_DIR / "prices.csv"
 LOG_FILE = DATA_DIR / "capture.log"
 
 BROWSER_PROFILE_DIR = DATA_DIR / "browser_profile"
@@ -29,6 +30,10 @@ DEFAULT_SETTINGS = {
     "publish_github_pages": False,           # push the viewer to the gh-pages branch after each capture
     "public_url": "",                        # link opened from the notification
     "public_include_identifiers": False,     # host names and listing IDs on the public page
+    "quote_enabled": True,                   # open each listing with dates to get a price quote
+    "quote_lead_days": [12, 20],             # check-in between 12 and 20 days ahead (nearest to 14 first)
+    "quote_guests": 2,
+    "quote_max_nights": 7,                   # skip the quote if the minimum stay is longer than this
 }
 
 

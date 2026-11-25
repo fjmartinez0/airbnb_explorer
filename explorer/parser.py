@@ -102,3 +102,104 @@ def parse_host_name(page_text: str) -> str:
     # Drop trailing badges such as "Superanfitrión" or "Superhost".
     name = re.split(r"\s+(?:Superanfitri|Superhost|\d)", name)[0].strip(" .,")
     return name
+
+
+# ---------------------------------------------------------------------------
+# Price quotes
+# ---------------------------------------------------------------------------
+
+def parse_money(text) -> float | None:
+    """'$356,400.00 COP' -> 356400.0; also '356.400', '-$20,000'. None if not a number."""
+    if text is None:
+        return None
+    raw = str(text)
+    negative = "-" in raw or "−" in raw
+    s = re.sub(r"[^\d.,]", "", raw)
+    if not s or not any(c.isdigit() for c in s):
+        return None
+    if "," in s and "." in s:
+        s = s.replace(",", "") if s.rfind(".") > s.rfind(",") else s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", "") if re.fullmatch(r"\d{1,3}(,\d{3})+", s) else s.replace(",", ".")
+    elif "." in s and re.fullmatch(r"\d{1,3}(\.\d{3})+", s):
+        s = s.replace(".", "")
+    try:
+        value = float(s)
+    except ValueError:
+        return None
+    return -value if negative else value
+
+
+def _price_items(obj):
+    """Every {description, priceString} line inside a price explanation, at any depth."""
+    if isinstance(obj, dict):
+        if "description" in obj and "priceString" in obj:
+            yield obj
+        for value in obj.values():
+            yield from _price_items(value)
+    elif isinstance(obj, list):
+        for value in obj:
+            yield from _price_items(value)
+
+
+def find_display_price(payloads: list) -> dict | None:
+    """The first non-empty structuredDisplayPrice in the captured responses."""
+    def walk(obj):
+        if isinstance(obj, dict):
+            sdp = obj.get("structuredDisplayPrice")
+            if isinstance(sdp, dict) and sdp.get("primaryLine"):
+                return sdp
+            for value in obj.values():
+                found = walk(value)
+                if found:
+                    return found
+        elif isinstance(obj, list):
+            for value in obj:
+                found = walk(value)
+                if found:
+                    return found
+        return None
+    return walk(payloads)
+
+
+_NIGHTS_X_RATE = re.compile(r"(\d+)\s*noches?\s*[x×]\s*(\S+)", re.I)
+_NIGHTS = re.compile(r"(\d+)\s*noches?", re.I)
+
+
+def parse_quote(display_price: dict | None) -> dict | None:
+    """Total, per-night price and fee lines from Airbnb's structuredDisplayPrice.
+
+    `total` is what the guest pays. In Colombia it is shown fees included
+    (displayPriceStyle TOTAL_ONLY), so `per_night` = total / nights is the
+    all-in nightly price, not what the host receives.
+    """
+    if not display_price:
+        return None
+    primary = display_price.get("primaryLine") or {}
+    total = parse_money(primary.get("discountedPrice") or primary.get("price"))
+    qualifier = primary.get("qualifier") or ""
+    out = {"total": total, "nights": None, "nightly_rate": None, "cleaning": None,
+           "service_fee": None, "taxes": None, "discount": None,
+           "display_style": display_price.get("displayPriceStyle") or "", "items": ""}
+    m = _NIGHTS.search(qualifier)
+    if m:
+        out["nights"] = int(m.group(1))
+    lines = []
+    for item in _price_items(display_price.get("explanationData") or {}):
+        desc, amount = item.get("description") or "", parse_money(item.get("priceString"))
+        lines.append(f"{desc}={item.get('priceString')}")
+        low = desc.lower()
+        m = _NIGHTS_X_RATE.search(desc)
+        if m:
+            out["nights"] = out["nights"] or int(m.group(1))
+            out["nightly_rate"] = parse_money(m.group(2))
+        elif "limpieza" in low or "cleaning" in low:
+            out["cleaning"] = amount
+        elif "servicio" in low or "service" in low:
+            out["service_fee"] = amount
+        elif "impuesto" in low or "tax" in low:
+            out["taxes"] = amount
+        elif "descuento" in low or "discount" in low or (amount is not None and amount < 0):
+            out["discount"] = amount
+    out["items"] = "; ".join(lines)
+    return out

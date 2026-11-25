@@ -13,9 +13,9 @@ import shutil
 import subprocess
 from datetime import datetime
 
-from .config import CALENDAR_CSV, DATA_DIR, ROOT, SNAPSHOTS_CSV
+from .config import CALENDAR_CSV, DATA_DIR, PRICES_CSV, ROOT, SNAPSHOTS_CSV
 from .storage import log, read_rows
-from .viewer_data import build_viewer_data, capture_runs, listing_details
+from .viewer_data import build_viewer_data, capture_runs, listing_details, price_quotes
 
 SITE_DIR = DATA_DIR / "site"
 BRANCH = "gh-pages"
@@ -31,7 +31,8 @@ def _git(args: list[str], cwd) -> str:
 
 def public_data(include_identifiers: bool) -> dict:
     snapshots = read_rows(SNAPSHOTS_CSV)
-    data = build_viewer_data(read_rows(CALENDAR_CSV), listing_details(snapshots), capture_runs(snapshots))
+    data = build_viewer_data(read_rows(CALENDAR_CSV), listing_details(snapshots), capture_runs(snapshots),
+                             price_quotes(read_rows(PRICES_CSV)))
     if not include_identifiers:
         for listing in data["listings"]:
             listing["host"] = ""

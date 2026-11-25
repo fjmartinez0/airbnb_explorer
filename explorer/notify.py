@@ -45,7 +45,8 @@ def capture_summary(results: list[dict]) -> tuple[str, str, int, list[str]]:
         change = ""
         if r.get("new_nights") is not None:
             change = f" · +{r['new_nights']} noches reservadas" if r["new_nights"] else " · sin reservas nuevas"
-        lines.append(f"✓ {r['label']}: {r['blocked_30']}/30 no disp.{change}")
+        price = f" · ${r['per_night'] / 1000:,.0f}k/noche" if r.get("per_night") else ""
+        lines.append(f"✓ {r['label']}: {r['blocked_30']}/30 no disp.{change}{price}")
     total_new = sum(r.get("new_nights") or 0 for r in ok)
     title = f"Airbnb Explorer · {len(ok)}/{len(results)} ok"
     if total_new:

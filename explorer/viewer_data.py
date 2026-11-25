@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from datetime import date, datetime, timedelta
 
-from .config import CALENDAR_CSV, SNAPSHOTS_CSV, VIEWER_DATA_JS, load_listings
+from .config import CALENDAR_CSV, PRICES_CSV, SNAPSHOTS_CSV, VIEWER_DATA_JS, load_listings
 from .storage import read_rows
 
 
@@ -52,8 +52,22 @@ def capture_runs(snapshots: list[dict]) -> list[dict]:
     return [by_date[d] for d in sorted(by_date)]
 
 
+def price_quotes(rows: list[dict]) -> dict[str, list[dict]]:
+    """Successful price quotes per label, in the compact form the viewer reads."""
+    quotes: dict[str, list[dict]] = {}
+    for r in rows:
+        if r.get("status") != "ok" or not r.get("per_night"):
+            continue
+        quotes.setdefault(r["label"], []).append({
+            "observed_date": r["observed_date"], "check_in": r["check_in"],
+            "nights": int(float(r["nights"] or 0)), "per_night": round(float(r["per_night"])),
+            "total": round(float(r["total"] or 0)), "weekend": str(r.get("weekend")) == "True",
+        })
+    return quotes
+
+
 def build_viewer_data(rows: list[dict], details: dict[str, dict] | None = None,
-                      runs: list[dict] | None = None) -> dict:
+                      runs: list[dict] | None = None, quotes: dict[str, list[dict]] | None = None) -> dict:
     # Keep only the last run of each day for each listing.
     latest: dict[tuple, dict] = {}
     for row in rows:
@@ -78,6 +92,7 @@ def build_viewer_data(rows: list[dict], details: dict[str, dict] | None = None,
         entry = listings.setdefault((label, listing_id), {
             "label": label, "listing_id": listing_id,
             "zone": info.get("zone", ""), "host": info.get("host", ""),
+            "quotes": (quotes or {}).get(label, []),
             "observations": []})
         entry["observations"].append({
             "observed_date": observed_date, "observed_time": obs["time"],
@@ -90,7 +105,8 @@ def build_viewer_data(rows: list[dict], details: dict[str, dict] | None = None,
 
 def export_viewer_data() -> None:
     snapshots = read_rows(SNAPSHOTS_CSV)
-    data = build_viewer_data(read_rows(CALENDAR_CSV), listing_details(snapshots), capture_runs(snapshots))
+    data = build_viewer_data(read_rows(CALENDAR_CSV), listing_details(snapshots), capture_runs(snapshots),
+                             price_quotes(read_rows(PRICES_CSV)))
     VIEWER_DATA_JS.parent.mkdir(parents=True, exist_ok=True)
     VIEWER_DATA_JS.write_text(
         "window.AIRBNB_DATA = " + json.dumps(data, ensure_ascii=False) + ";\n", encoding="utf-8")

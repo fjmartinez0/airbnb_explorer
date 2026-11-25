@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .config import ANALYSIS_DIR, CALENDAR_CSV
+from .config import ANALYSIS_DIR, CALENDAR_CSV, PRICES_CSV
 
 LONG_BLOCK_NIGHTS = 28
 
@@ -112,6 +112,19 @@ def run_analysis(path: Path = CALENDAR_CSV) -> tuple[pd.DataFrame, pd.DataFrame]
         all_events += events
         summaries.append(summary)
     events_df, summary_df = pd.DataFrame(all_events), pd.DataFrame(summaries)
+    if PRICES_CSV.exists() and len(summary_df):
+        prices = pd.read_csv(PRICES_CSV, dtype={"listing_id": str})
+        prices = prices[prices["status"] == "ok"]
+        if len(prices):
+            prices["weekend"] = prices["weekend"].astype(str) == "True"
+            g = prices.groupby("label")
+            price_summary = pd.DataFrame({
+                "price_quotes": g.size(),
+                "median_price_per_night": g["per_night"].median().round(0),
+                "median_price_weekday": prices[~prices["weekend"]].groupby("label")["per_night"].median().round(0),
+                "median_price_weekend": prices[prices["weekend"]].groupby("label")["per_night"].median().round(0),
+            }).reset_index()
+            summary_df = summary_df.merge(price_summary, on="label", how="left")
     ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
     events_df.to_csv(ANALYSIS_DIR / "events.csv", index=False)
     summary_df.to_csv(ANALYSIS_DIR / "summary.csv", index=False)

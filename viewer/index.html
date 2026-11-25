@@ -179,6 +179,7 @@ tr.click:hover td { background: var(--free); }
       <span class="badge" id="badge">Datos de ejemplo</span>
     </div>
     <div class="zones" id="zones"></div>
+    <p class="note" style="margin:0;color:var(--muted);font-size:0.85rem;max-width:80ch">Precio por noche: total que paga el huésped por una estadía de 2 noches a unos 14 días, dividido por las noches, con tarifas incluidas. El anfitrión recibe menos: Airbnb le descuenta su comisión.</p>
 
     <section class="panel">
       <h2>Próximos 30 días</h2>
@@ -256,6 +257,11 @@ tr.click:hover td { background: var(--free); }
           <p class="note" id="histNote"></p>
         </section>
         <section class="panel">
+          <h2>Precios cotizados</h2>
+          <p class="note" id="quoteNote"></p>
+          <div class="scroll" style="max-height:300px"><table class="ev" id="quotes"></table></div>
+        </section>
+        <section class="panel">
           <h2>Eventos detectados</h2>
           <div class="scroll" style="max-height:360px"><table class="ev" id="ev"></table></div>
         </section>
@@ -279,6 +285,8 @@ const isWE = t => dw(t) === 5 || dw(t) === 6;
 const med = a => { if (!a.length) return null; const s = [...a].sort((x,y)=>x-y), m = s.length>>1; return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
 const mean = a => a.length ? a.reduce((x,y)=>x+y,0) / a.length : null;
 const pct = v => v == null ? "–" : `${Math.round(v)}%`;
+const cop = v => v == null ? "–" : "$" + Math.round(v).toLocaleString("es-CO");
+const copK = v => v == null ? "–" : `$${Math.round(v / 1000)}k`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const $ = id => document.getElementById(id);
 const LONG_BLOCK = 28, NO_ZONE = "Sin zona";
@@ -307,7 +315,10 @@ function sampleData() {
       let s = ""; for (let k = 0; k < H; k++) s += av.get(t + k*DAY) ? "1" : "0";
       observations.push({observed_date: iso(t), observed_time: "07:00", start: iso(t), availability: s});
     });
-    listings.push({label: `${slug}-${i}`, listing_id: "", zone, host: "", observations});
+    const base = {Castellana: 190000, Chapinero: 165000, "Zona G": 235000}[zone] * (0.8 + r()*0.45), quotes = [];
+    observations.forEach(o => { if (r() < 0.85) { const t = toD(o.observed_date), we = (Math.floor(t / DAY) % 2) === 0, ci = t + (12 + Math.floor(r()*8))*DAY;
+      quotes.push({observed_date: o.observed_date, check_in: iso(ci), nights: 2, weekend: we, per_night: Math.round(base * (we ? 1.12 : 1) * (0.94 + r()*0.12) / 100) * 100}); } });
+    listings.push({label: `${slug}-${i}`, listing_id: "", zone, host: "", observations, quotes});
   }});
   const runs = caps.map(t => ({date: iso(t), time: failAll.has(t) ? "07:04" : "07:00", ok: failAll.has(t) ? 19 - 19 : t === partial ? 17 : 19, total: 19}));
   return {generated_at: null, runs, listings};
@@ -321,8 +332,10 @@ function prepare(data) {
       .sort((a, b) => a.t - b.t);
     if (!obs.length) return null;
     const host = (l.host || "").trim();
+    const quotes = (l.quotes || []).map(q => ({ t: toD(q.observed_date), ci: toD(q.check_in), n: +q.nights || 2,
+      ppn: +q.per_night, we: q.weekend === true || q.weekend === "True" })).filter(q => q.ppn > 0).sort((a, b) => a.t - b.t);
     return { label: l.label, id: l.listing_id || "", host, name: host ? `${l.label} · ${host}` : l.label,
-             zone: (l.zone || "").trim() || NO_ZONE, obs, byT: new Map(obs.map(o => [o.t, o])) };
+             zone: (l.zone || "").trim() || NO_ZONE, obs, quotes, byT: new Map(obs.map(o => [o.t, o])) };
   }).filter(Boolean);
   const runs = (data.runs || []).map(r => ({ t: toD(r.date), time: r.time || "", ok: +r.ok, total: +r.total }));
   CAPS = [...new Set([...runs.map(r => r.t), ...LIST.flatMap(l => l.obs.map(o => o.t))])].sort((a, b) => a - b);
@@ -363,6 +376,13 @@ function occupancy(l, from) {
   return n ? 100*occ/n : null;
 }
 
+function priceStats(quotes) {
+  const all = quotes.map(q => q.ppn), we = quotes.filter(q => q.we).map(q => q.ppn), wd = quotes.filter(q => !q.we).map(q => q.ppn);
+  const mWe = med(we), mWd = med(wd);
+  return { n: all.length, med: med(all), we: mWe, wd: mWd, premium: mWe && mWd ? 100 * (mWe / mWd - 1) : null };
+}
+const quotesIn = (l, from, to = Infinity) => l.quotes.filter(q => q.t > from && q.t <= to);
+
 /* ---------- Encabezado y aviso ---------- */
 function renderStatus() {
   const r = LAST_RUN, cls = r.ok === r.total ? "g" : r.ok ? "w" : "b";
@@ -387,7 +407,8 @@ function zoneStats(z) {
            blk: mean(z.listings.map(l => blocked30(l.last, REF)).filter(v => v != null)),
            perWeek: res.length / z.listings.length / days * 7, res,
            lead: med(res.map(e => e.lead)), short: res.length ? 100*res.filter(e => e.lead <= 14).length/res.length : null,
-           stay: med(res.map(e => e.nights)) };
+           stay: med(res.map(e => e.nights)),
+           price: priceStats(z.listings.flatMap(l => quotesIn(l, from))) };
 }
 function renderZones() {
   $("zones").innerHTML = ZONES.map(z => { const s = zoneStats(z); z.stats = s; return `
@@ -397,7 +418,9 @@ function renderZones() {
     <dt>Reservas por anuncio y semana</dt><dd>${s.perWeek.toFixed(1)}</dd>
     <dt>Anticipación mediana</dt><dd>${s.lead == null ? "–" : s.lead + " d"}</dd>
     <dt>Reservadas con ≤14 días</dt><dd>${pct(s.short)}</dd>
-    <dt>Estancia mediana</dt><dd>${s.stay == null ? "–" : s.stay + " noches"}</dd></dl></article>`; }).join("");
+    <dt>Estancia mediana</dt><dd>${s.stay == null ? "–" : s.stay + " noches"}</dd>
+    <dt>Precio mediano por noche</dt><dd>${cop(s.price.med)}</dd>
+    <dt>Fin de semana vs. entre semana</dt><dd>${s.price.premium == null ? "–" : (s.price.premium >= 0 ? "+" : "") + Math.round(s.price.premium) + "%"}</dd></dl></article>`; }).join("");
 }
 function renderHeat() {
   const nights = Array.from({length: 30}, (_, k) => REF + k*DAY);
@@ -469,9 +492,9 @@ function renderLeadZones() {
 }
 function renderTable() {
   const from = periodFrom();
-  $("listingTable").innerHTML = `<thead><tr><th>Anuncio</th><th>Zona</th><th class="n">Ocupación</th><th class="n">No disp. 30 d</th><th class="n">Reservas</th><th class="n">Antic. mediana</th><th class="n">Último dato</th></tr></thead><tbody>` +
-    ZONES.flatMap(z => z.listings).map(l => { const res = bookings(l, from), lead = med(res.map(e => e.lead));
-      return `<tr class="click" tabindex="0" data-l="${esc(l.label)}"><td class="name">${esc(l.name)}</td><td><span class="zchip"><i style="background:${l.zoneObj.color}"></i>${esc(l.zone)}</span></td><td class="n">${pct(occupancy(l, from))}</td><td class="n">${pct(blocked30(l.last, REF))}</td><td class="n">${res.length}</td><td class="n">${lead == null ? "–" : lead + " d"}</td><td class="n" style="${l.last.t < REF ? "color:var(--bad)" : ""}">${fs(l.last.t)}</td></tr>`; }).join("") + `</tbody>`;
+  $("listingTable").innerHTML = `<thead><tr><th>Anuncio</th><th>Zona</th><th class="n">Ocupación</th><th class="n">No disp. 30 d</th><th class="n">Reservas</th><th class="n">Antic. mediana</th><th class="n">Precio/noche</th><th class="n">Último dato</th></tr></thead><tbody>` +
+    ZONES.flatMap(z => z.listings).map(l => { const res = bookings(l, from), lead = med(res.map(e => e.lead)), pr = priceStats(quotesIn(l, from));
+      return `<tr class="click" tabindex="0" data-l="${esc(l.label)}"><td class="name">${esc(l.name)}</td><td><span class="zchip"><i style="background:${l.zoneObj.color}"></i>${esc(l.zone)}</span></td><td class="n">${pct(occupancy(l, from))}</td><td class="n">${pct(blocked30(l.last, REF))}</td><td class="n">${res.length}</td><td class="n">${lead == null ? "–" : lead + " d"}</td><td class="n">${cop(pr.med)}</td><td class="n" style="${l.last.t < REF ? "color:var(--bad)" : ""}">${fs(l.last.t)}</td></tr>`; }).join("") + `</tbody>`;
 }
 function renderHealth() {
   const days = CAPS.slice(-30);
@@ -515,9 +538,10 @@ function renderDetail(label) {
     ["Reservadas con ≤14 días", pct(short), "lo que un corte trimestral no ve"],
     ["Noches liberadas", evs.filter(e => e.type === "rel").reduce((s, e) => s + e.nights, 0), "cancelaciones o desbloqueos"],
     ["Capturas fallidas", failed, `de las últimas ${win.length}`],
+    ["Precio mediano por noche", cop(priceStats(quotesIn(l, from)).med), `${quotesIn(l, from).length} cotizaciones · tarifas incluidas`],
   ];
   $("kpis").innerHTML = items.map(([a, v, hh]) => `<div class="kpi"><span class="lab">${a}</span><span class="val">${v}</span><span class="hint">${hh}</span></div>`).join("");
-  renderHist(res, win.length); renderEvents(evs);
+  renderHist(res, win.length); renderEvents(evs); renderQuotes(quotesIn(l, from));
 }
 function renderHist(res, n) {
   const counts = LEAD_BINS.map(([, a, b]) => res.filter(e => e.lead >= a && e.lead <= b).length);
@@ -539,6 +563,14 @@ function renderEvents(evs) {
   $("ev").innerHTML = `<thead><tr><th>Visto</th><th>Tipo</th><th>Llegada</th><th class="n">Noches</th><th class="n">Antic.</th></tr></thead><tbody>` +
     ev.map(e => { const p = e.block ? `<span class="pill blk">Posible bloqueo</span>` : e.type === "new" ? `<span class="pill new"><i style="background:var(--new)"></i>Reserva</span>` : `<span class="pill rel"><i style="background:var(--rel)"></i>Liberada</span>`;
       return `<tr><td>${fs(e.obs)}</td><td>${p}</td><td>${fs(e.arr)}</td><td class="n">${e.nights}</td><td class="n">${e.lead} d</td></tr>`; }).join("") + `</tbody>`;
+}
+
+function renderQuotes(qs) {
+  const ps = priceStats(qs);
+  $("quoteNote").textContent = qs.length ? `Mediana ${cop(ps.med)} · entre semana ${cop(ps.wd)} · fin de semana ${cop(ps.we)}${ps.premium == null ? "" : ` (${ps.premium >= 0 ? "+" : ""}${Math.round(ps.premium)}%)`}.` : "Sin cotizaciones en la ventana elegida.";
+  if (!qs.length) { $("quotes").innerHTML = ""; return; }
+  $("quotes").innerHTML = `<thead><tr><th>Cotizado</th><th>Estadía</th><th>Tipo</th><th class="n">Por noche</th></tr></thead><tbody>` +
+    [...qs].reverse().map(q => `<tr><td>${fs(q.t)}</td><td>${fs(q.ci)} · ${q.n} n</td><td>${q.we ? "Fin de semana" : "Entre semana"}</td><td class="n">${cop(q.ppn)}</td></tr>`).join("") + `</tbody>`;
 }
 
 /* ---------- Tooltip y controles ---------- */

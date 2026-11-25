@@ -9,5 +9,12 @@
   "retry_failed": true,
   "publish_github_pages": false,
   "public_url": "",
-  "public_include_identifiers": false
+  "public_include_identifiers": false,
+  "quote_enabled": true,
+  "quote_lead_days": [
+    12,
+    20
+  ],
+  "quote_guests": 2,
+  "quote_max_nights": 7
 }

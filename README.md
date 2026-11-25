@@ -7,6 +7,7 @@ Proyecto personal y educativo. Nació para contrastar las estimaciones de ocupac
 ## Cómo funciona
 
 1. **Captura** (`capture`): una vez al día abre cada anuncio en un navegador controlado por [Playwright](https://playwright.dev/python/), copia la respuesta del calendario que el propio sitio carga y la guarda.
+   Además abre cada anuncio **con fechas** (2 adultos, una estadía libre a 12–20 días, alternando fin de semana y entre semana) y guarda la cotización que muestra la página en `data/prices.csv`. El precio es el total que paga el huésped, con tarifas incluidas; el anfitrión recibe menos.
 2. **Comparación** (`analyze`): compara cada captura con la anterior. Una noche futura que pasa de *libre* a *no disponible* es una reserva probable. Una que pasa de *no disponible* a *libre* es una cancelación o un desbloqueo.
 3. **Visor** (`viewer/index.html`): dos vistas.
    - **Resumen por zona:** métricas por periodo (7, 14, 30 días o todo), mapa de los próximos 30 días por anuncio, tendencia de noches no disponibles, anticipación de reserva, tabla de anuncios y salud de la captura (con aviso cuando la última corrida falla).
@@ -76,6 +77,8 @@ cp settings.example.json settings.json
 | `start_delay_minutes` | Espera aleatoria opcional antes de una corrida programada (por defecto 0: sin espera). |
 | `pause_between_listings_seconds` | Pausa aleatoria entre anuncios (por defecto 60 a 300 s: de 1 a 5 min). |
 | `retry_failed` | Reintenta una vez el anuncio que falle. |
+| `quote_enabled` | Abre los anuncios con fechas para guardar la cotización (por defecto sí). |
+| `quote_lead_days` | Rango de llegada de la estadía cotizada, en días desde hoy (por defecto 12 a 20). |
 | `publish_github_pages` | Publica el visor en la rama `gh-pages` después de cada captura. |
 | `public_url` | Dirección del visor publicado; la notificación la abre al tocarla. |
 | `public_include_identifiers` | Incluye nombres de anfitriones e IDs en la copia pública (por defecto no). |
@@ -119,6 +122,7 @@ y en GitHub: **Settings → Pages → Deploy from a branch → `gh-pages` / root
 | Archivo | Contenido |
 |---|---|
 | `data/calendar.csv` | Una fila por anuncio × noche × día de observación |
+| `data/prices.csv` | Una cotización por anuncio y día: fechas, noches, total, precio por noche, fin de semana o no |
 | `data/snapshots.csv` | Una fila por anuncio y captura: estado, noches no disponibles a 7 y 30 días, reseñas, anfitrión |
 | `data/raw/` | Respuesta original de cada captura |
 | `data/analysis/events.csv` | Reservas y liberaciones detectadas |

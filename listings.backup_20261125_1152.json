@@ -1,0 +1,23 @@
+{
+  "listings": [
+    {"label": "castellana-1", "id": "1431217729517312523", "zone": "Castellana", "host": ""},
+    {"label": "castellana-2", "id": "1326948730877984080", "zone": "Castellana", "host": ""},
+    {"label": "vastellana-3", "id": "1531081518142137963", "zone": "Castellana", "host": ""},
+    {"label": "castellana-4", "id": "1557598771742269468", "zone": "Castellana", "host": ""},
+    {"label": "castellana-5", "id": "1639432706640966981", "zone": "Castellana", "host": ""},
+    {"label": "castellana-6", "id": "1602381438472285679", "zone": "Castellana", "host": ""},
+    {"label": "castellana-7", "id": "1744294070488050444", "zone": "Castellana", "host": ""},
+    {"label": "zonag-1", "id": "1091285121591636767", "zone": "Zona G", "host": ""},
+    {"label": "zonag-2", "id": "1315160387597434122", "zone": "Zona G", "host": ""},
+    {"label": "zonag-3", "id": "886515628028669424", "zone": "Zona G", "host": ""},
+    {"label": "zonag-4", "id": "1073814945716286236", "zone": "Zona G", "host": ""},
+    {"label": "zonag-5", "id": "42118904", "zone": "Zona G", "host": ""},
+    {"label": "zonag-6", "id": "1002075728886163474", "zone": "Zona G", "host": ""},
+    {"label": "chapinero-1", "id": "935371765147460726", "zone": "Chapinero", "host": ""},
+    {"label": "chapinero-2", "id": "45741950", "zone": "Chapinero", "host": ""},
+    {"label": "chapinero-3", "id": "1639477998571747040", "zone": "Chapinero", "host": ""},
+    {"label": "chapinero-4", "id": "1755982580631453501", "zone": "Chapinero", "host": ""},
+    {"label": "chapinero-5", "id": "905312109191758279", "zone": "Chapinero", "host": ""},
+    {"label": "chapinero-6", "id": "1094963744134328261", "zone": "Chapinero", "host": ""}
+  ]
+}
